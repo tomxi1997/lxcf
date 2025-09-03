@@ -104,13 +104,13 @@ jobs:
           meson compile -C build
           sudo ninja -C build install
           sudo bash -c "cd /data && tar -zcvf lxc-ndk-api26-release.tar.gz lxc"
-          sudo bash -c "cp /data/*.gz $work_dir"         
+          sudo bash -c "cp /data/*.gz ${{ github.workspace }}"         
 
 
       - name: Upload NDK release file
         uses: actions/upload-artifact@v4
         with:
           name: lxc-ndk-api26-release
-          path: $work_dir/lxc-ndk-api26-release.tar.gz
+          path: ${{ github.workspace }}/lxc-ndk-api26-release.tar.gz
 
     
