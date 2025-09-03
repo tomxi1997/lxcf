@@ -103,7 +103,8 @@ jobs:
                             --wipe
           meson compile -C build
           sudo ninja -C build install
-          sudo bash -c "cd /data/lxc && tar -zcvf $work_dir/lxc-ndk-api26-release.tar.gz ."
+          sudo bash -c "cd /data && tar -zcvf lxc-ndk-api26-release.tar.gz lxc"
+          sudo bash -c "cp /data/*.gz $work_dir"         
 
 
       - name: Upload NDK release file
