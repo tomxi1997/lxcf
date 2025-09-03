@@ -1,0 +1,116 @@
+name: Build LXCF Android
+
+on:
+  workflow_dispatch:
+
+jobs:
+  Build_stable_5:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: | 
+             sudo apt-get update -qq
+             sudo apt-get install -qq --yes \
+                  apparmor bash-completion bridge-utils build-essential \
+                  busybox-static clang cloud-image-utils curl dbus debhelper debootstrap \
+                  devscripts dnsmasq-base docbook2x doxygen ed fakeroot file gcc-12 g++-12 cmake graphviz \
+                  git iptables meson net-tools libapparmor-dev libcap-dev libgnutls28-dev liblua5.2-dev \
+                  libpam0g-dev libseccomp-dev libselinux1-dev libtool linux-libc-dev libpam-dev \
+                  llvm lsb-release make openssl pkg-config python3-all-dev liburing-dev libpthread-stubs0-dev \
+                  python3-setuptools rsync squashfs-tools uidmap unzip uuid-runtime systemd \
+                  wget xz-utils systemd-coredump libdbus-1-dev libsystemd-dev gcc-aarch64-linux-gnu
+             sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 20 --slave /usr/bin/g++ g++ /usr/bin/g++-12
+             sudo apt-get remove --yes lxc-utils liblxc-common liblxc1 liblxc-dev
+
+      - name: Get NDK Toolchains
+        id: env
+        run: |
+          work_dir=$(pwd)
+          echo "::set-output name=work_dir::$work_dir"
+          wget https://googledownloads.cn/android/repository/android-ndk-r28c-linux.zip
+          unzip -q android-ndk-r28c-linux.zip
+          ndk_dir=$(pwd)/android-ndk-r28c/toolchains/llvm/prebuilt/linux-x86_64/bin
+          echo "::set-output name=ndk_dir::$ndk_dir"
+
+   
+
+      - name: Configure the cross file
+        run: |
+          work_dir=${{ steps.env.outputs.work_dir }}
+          ndk_dir=${{ steps.env.outputs.ndk_dir }}
+      
+          # NDK
+          cat << EOF >> aarch64-NDK-API26
+          [binaries]
+          c = '$ndk_dir/aarch64-linux-android26-clang'
+          cpp = '$ndk_dir/aarch64-linux-android26-clang++'
+          ar = '$ndk_dir/llvm-ar'
+          as = '$ndk_dir/aarch64-linux-android26-clang'
+          ld = '$ndk_dir/ld'
+          strip = '$ndk_dir/llvm-strip'
+          ranlib = '$ndk_dir/llvm-ranlib'
+          pkg-config = '/usr/bin/pkg-config'
+          cmake = '/usr/bin/cmake'
+
+          [built-in options]
+          c_args = ['-O2', '-pipe', '-g', '-feliminate-unused-debug-types']
+          c_link_args = ['-Wl,-rpath', '-Wl,--as-needed']
+          cpp_args = ['-O2', '-pipe', '-g', '-feliminate-unused-debug-types']
+          cpp_link_args = ['-Wl,-rpath', '-Wl,--as-needed']
+          EOF
+
+      - name: Check the compilation configuration
+        run: |
+          work_dir=${{ steps.env.outputs.work_dir }}
+          ndk_dir=${{ steps.env.outputs.ndk_dir }}
+          echo
+          $ndk_dir/aarch64-linux-android26-clang -v
+          echo
+          echo PKG-CONFIG INFO:
+          pkg-config --list-all
+          pkg-config --variable pc_path pkg-config
+        
+
+      - name: Build lxc with NDK r28c Android API 26
+        run: |
+          work_dir=${{ steps.env.outputs.work_dir }}
+          mv ndk.patch lxc/
+          sudo apt remove -y -qq meson
+          sudo apt install -y -qq pipx
+          pipx install meson
+          PATH=$work_dir/.local/bin:$PATH
+          cd lxc
+          patch -p0 -R < ndk.patch
+          sed -i "s/cpuset.cpus/cpus/g" ./src/lxc/cgroups/cgfsng.c
+          meson setup build -Dprefix=/data/lxcf \
+                            -Dinit-script=sysvinit \
+                            -Druntime-path=/data/lxcf/tmp \
+                            -Dstrip=true \
+                            -Dd_lto=true \
+                            -Dcapabilities=false \
+                            -Dseccomp=false \
+                            -Dselinux=false \
+                            -Dapparmor=false \
+                            -Dopenssl=false \
+                            -Dlog-path=/data/lxcf/var/log/lxc \
+                            -Ddata-path=/data/lxcf/lib/lxc \
+                            --localstatedir=/data/lxcf/var \
+                            --buildtype release \
+                            --cross-file ../aarch64-NDK-API26 \
+                            --wipe
+          meson compile -C build
+          sudo ninja -C build install
+          sudo bash -c "cd /data && tar -zcvf lxcf-ndk-api26-release.tar.xz lxcf"
+          sudo bash -c "cp /data/*.xz ${{ github.workspace }}"         
+
+
+      - name: Upload NDK release file
+        uses: actions/upload-artifact@v4
+        with:
+          name: lxc-ndk-api26-release
+          path: ${{ github.workspace }}/lxcf-ndk-api26-release.tar.xz
+
+    
