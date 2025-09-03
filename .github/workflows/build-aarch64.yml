@@ -85,9 +85,9 @@ jobs:
           cd lxc
           patch -p0 -R < ndk.patch
           sed -i "s/cpuset.cpus/cpus/g" ./src/lxc/cgroups/cgfsng.c
-          meson setup build -Dprefix=/data/lxc \
+          meson setup build -Dprefix=/data/lxcf \
                             -Dinit-script=sysvinit \
-                            -Druntime-path=/data/local/tmp \
+                            -Druntime-path=/data/local/tmp/lxcf \
                             -Dstrip=true \
                             -Dd_lto=true \
                             -Dcapabilities=false \
@@ -95,15 +95,15 @@ jobs:
                             -Dselinux=false \
                             -Dapparmor=false \
                             -Dopenssl=false \
-                            -Dlog-path=/data/lxc/var/log/lxc \
-                            -Ddata-path=/data/lxc/lib/lxc \
-                            --localstatedir=/data/lxc/var \
+                            -Dlog-path=/data/lxcf/var/log/lxc \
+                            -Ddata-path=/data/lxcf/lib/lxc \
+                            --localstatedir=/data/lxcf/var \
                             --buildtype release \
                             --cross-file ../aarch64-NDK-API26 \
                             --wipe
           meson compile -C build
           sudo ninja -C build install
-          sudo bash -c "cd /data && tar -zcvf lxc-ndk-api26-release.tar.gz lxc"
+          sudo bash -c "cd /data && tar -zcvf lxc-ndk-api26-release.tar.gz lxcf"
           sudo bash -c "cp /data/*.gz ${{ github.workspace }}"         
 
 
